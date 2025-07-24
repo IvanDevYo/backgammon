@@ -42,11 +42,36 @@ export default class Renderer {
               </div>
             </div>
           </div>
+          <div>
+            <div id="buttons"></div>
+            <div id="dice-results"></div>
+          </div>
         `;
+        this.createDiceRoll();
     }
 
     public static createChecker(index: number, pointIndex: number, color: string): void {
         const point = document.querySelector(`.point[data-index="${pointIndex}"]`);
         point!.innerHTML = point!.innerHTML?.concat(`<div class="checker checker-${color}" data-index="${index}"></div>`);
+    }
+
+    public static createPoint(index: number, rowIndex: number): void {
+        const row = document.querySelectorAll(`.point-row`)[rowIndex];
+        row!.innerHTML = row!.innerHTML?.concat(`<div class="point" data-index="${index}"></div>`);
+    }
+
+    public static createPointDivider(rowIndex: number): void {
+        const row = document.querySelectorAll(`.point-row`)[rowIndex];
+        row!.innerHTML = row!.innerHTML?.concat(`<div class="bar" data-index="bar-bottom">BAR</div>`);
+    }
+
+    public static createDiceRoll() {
+        document.querySelector('#buttons')!.innerHTML = `
+            <button id="roll-dice">Roll Dice</button>
+        `;
+    }
+
+    public static setDiceValue(value: number[]): void {
+        document.querySelector('#dice-results')!.innerHTML = value.join(',');
     }
 }
