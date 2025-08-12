@@ -1,8 +1,5 @@
 
 export default class Player {
-
-    constructor(
-        public id: number,
-        public color: string
-    ) {}
+    constructor(public color: string = 'white') {
+    }
 }

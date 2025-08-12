@@ -1,8 +1,16 @@
-import Renderer from "ui/Renderer.ts";
 
 export default class Dice {
     public values: number[] = [];
     public remaining: number[] = [];
+    public startPlayerRoll: number[] = [];
+
+    public startRoll(): number[] {
+        const a = this.random();
+        const b = this.random();
+
+        this.startPlayerRoll = [a, b];
+        return this.startPlayerRoll;
+    }
 
     public roll(): void {
         const a = this.random();
@@ -10,14 +18,12 @@ export default class Dice {
 
         this.values = a === b ? [a, a, a, a] : [a, b];
         this.remaining = [...this.values];
-        Renderer.setDiceValue(this.remaining);
     }
 
     public use(value: number): boolean {
         const idx = this.remaining.indexOf(value);
         if (idx === -1) return false;
         this.remaining.splice(idx, 1);
-        Renderer.setDiceValue(this.remaining);
         return true;
     }
 

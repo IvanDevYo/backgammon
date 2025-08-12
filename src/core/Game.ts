@@ -1,102 +1,108 @@
-import Board from 'core/Board.ts';
 import Player from 'core/Player.ts';
-import InputHandler from 'ui/InputHandlers.ts';
+import Checker from 'core/Checker.ts';
 import Dice from 'core/Dice.ts';
+import InputHandler from 'ui/InputHandlers.ts';
+import Renderer from 'ui/Renderer.ts';
 
 type GamePhase = 'waiting_roll' | 'waiting_move' | 'game_over';
 
 export default class Game {
-    private board: Board;
     private players: [Player, Player];
     private currentPlayerIndex: number = 0;
-    private dice: Dice;
-    private input: InputHandler;
+    private points: Checker[][] = Array.from({ length: 24 }, () => []);
+    private lastCheckerId = 0;
     private phase: GamePhase = 'waiting_roll';
-    private selectedCheckerId: number | null = null;
+    private selectedChecker: number | null = null;
+    private possibleMoves : number[] = [];
+    private dice: Dice;
+    private inputHandler: InputHandler;
 
     constructor() {
-        this.board = new Board();
-        this.players = [new Player(1, 'white'), new Player(2, 'black')];
+        Renderer.createBoard('#app');
         this.dice = new Dice();
-
-        this.input = new InputHandler(
-            this.onPointClick.bind(this),
-            this.onCheckerClick.bind(this),
-            this.onDiceRoll.bind(this)
+        this.players = [new Player('white'), new Player('black')];
+        this.inputHandler = new InputHandler(
+            this.handlePointClick.bind(this),
+            this.handleCheckerClick.bind(this),
+            this.handleDiceRoll.bind(this)
         );
 
         this.start();
     }
 
-    private start() {
-        console.log('Starting Game');
-        this.board.setupInitialPosition(this.players);
+    public start() {
+        this.setupInitialPosition();
+        this.dice.startRoll();
+        this.currentPlayerIndex = this.dice.startPlayerRoll.indexOf(Math.max(...this.dice.startPlayerRoll));
         this.phase = 'waiting_roll';
-        console.log(this.phase);
-        this.render();
     }
 
-    private onPointClick(pointIndex: number): void {
-        if (this.phase !== 'waiting_move') return;
-        if (this.selectedCheckerId === null) return;
+    public setupInitialPosition() {
+        this.points = Array.from({ length: 24 }, () => []);
 
-        const success = this.board.tryMoveChecker(
-            this.selectedCheckerId,
-            pointIndex,
-            this.dice
-        );
+        this.addCheckers(0, 'white', 12, 15, false);
+        this.addCheckers(1, 'black', 0, 15, true);
+    }
 
-        if (success) {
-            console.log(`Moved checker ${this.selectedCheckerId} to ${pointIndex}`);
-            this.selectedCheckerId = null;
-
-            if (this.board.isTurnOver(this.dice)) {
-                this.switchTurn();
-            }
-
-            this.render();
-        } else {
-            console.warn('Invalid move');
+    private addCheckers(playerIndex: number, color: string, pointIndex: number, count: number, reverseMove: boolean = false) {
+        for (let i = 0; i < count; i++) {
+            const checker = new Checker(this.lastCheckerId++, playerIndex, color, reverseMove);
+            this.points[pointIndex].push(checker);
+            Renderer.createChecker(checker.id, pointIndex, color);
         }
     }
 
-    private onCheckerClick(checkerId: number): void {
-        console.log(this.phase);
-        if (this.phase !== 'waiting_move') return;
-
-        const checker = this.board.getCheckerById(checkerId);
-        console.log(checker);
-        if (!checker || checker.ownerId !== this.currentPlayer.id) return;
-
-        this.selectedCheckerId = checkerId;
-        console.log(`Checker ${checkerId} selected`);
+    private isPointWithOtherPlayerChecker(pointIndex: number): boolean {
+        const newPoint = this.points[pointIndex]
+        return !!newPoint.length && newPoint[0].playerIndex !== this.currentPlayerIndex;
     }
 
-    private onDiceRoll(): void {
-        if (this.phase !== 'waiting_roll') return;
+    private calculatePossibleMoves() {
+        const moves = new Set<number>();
 
+        for (let pointIndex = 0; pointIndex < this.points.length; pointIndex++) {
+            for (const checker of this.points[pointIndex]) {
+                if (checker.playerIndex !== this.currentPlayerIndex) continue;
+
+                let sum = 0;
+                for (const value of this.dice.remaining) {
+                    sum += value;
+
+                    const currentNewPointIndex = pointIndex + value;
+                    if (!this.isPointWithOtherPlayerChecker(currentNewPointIndex)) {
+                        moves.add(currentNewPointIndex);
+                    }
+
+                    const sumNewPointIndex = pointIndex + sum;
+                    if (!this.isPointWithOtherPlayerChecker(sumNewPointIndex)) {
+                        moves.add(sumNewPointIndex);
+                    }
+                }
+            }
+        }
+
+        this.possibleMoves = [...moves];
+
+        console.log('this.currentPlayerIndex', this.currentPlayerIndex);
+        console.log('this.dice.remaining', this.dice.remaining);
+        console.log('this.possibleMoves', this.possibleMoves);
+    }
+
+    private handleCheckerClick(checkerId: number): void {
+        this.selectedChecker = checkerId;
+    }
+
+    private handlePointClick(pointIndex: number): void {
+        if (this.selectedChecker === null) return;
+        this.selectedChecker = null;
+    }
+
+    private handleDiceRoll(): void {
         this.dice.roll();
-        this.phase = 'waiting_move';
-        console.log(`Dice rolled: ${this.dice.values.join(', ')}`);
-        this.render();
-    }
-
-    private switchTurn(): void {
-        this.currentPlayerIndex = 1 - this.currentPlayerIndex;
-        this.phase = 'waiting_roll';
-        this.dice.reset();
-        console.log(`Switched to player ${this.currentPlayer.id}`);
-    }
-
-    private get currentPlayer(): Player {
-        return this.players[this.currentPlayerIndex];
-    }
-
-    private render(): void {
-        this.board.render();
+        this.calculatePossibleMoves();
     }
 
     public destroy(): void {
-        this.input.destroy();
+        this.inputHandler.destroy();
     }
 };
