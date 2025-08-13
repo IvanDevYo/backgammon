@@ -12,7 +12,7 @@ export default class Game {
     private points: Checker[][] = Array.from({ length: 24 }, () => []);
     private lastCheckerId = 0;
     private phase: GamePhase = 'waiting_roll';
-    private selectedChecker: number | null = null;
+    private selectedCheckerId: number | null = null;
     private possibleMoves : number[] = [];
     private dice: Dice;
     private inputHandler: InputHandler;
@@ -52,28 +52,33 @@ export default class Game {
         }
     }
 
+    private normalizePointIndex(pointIndex: number): number {
+        return pointIndex > 23 ? 24 - pointIndex : pointIndex;
+    }
+
     private isPointWithOtherPlayerChecker(pointIndex: number): boolean {
         const newPoint = this.points[pointIndex]
         return !!newPoint.length && newPoint[0].playerIndex !== this.currentPlayerIndex;
     }
 
-    private calculatePossibleMoves() {
+    private calculatePossibleMoves(checkerId: number | null = null): void {
         const moves = new Set<number>();
 
         for (let pointIndex = 0; pointIndex < this.points.length; pointIndex++) {
             for (const checker of this.points[pointIndex]) {
                 if (checker.playerIndex !== this.currentPlayerIndex) continue;
+                if (checkerId && checker.id !== checkerId) continue;
 
                 let sum = 0;
                 for (const value of this.dice.remaining) {
                     sum += value;
 
-                    const currentNewPointIndex = pointIndex + value;
+                    const currentNewPointIndex = this.normalizePointIndex(pointIndex + value);
                     if (!this.isPointWithOtherPlayerChecker(currentNewPointIndex)) {
                         moves.add(currentNewPointIndex);
                     }
 
-                    const sumNewPointIndex = pointIndex + sum;
+                    const sumNewPointIndex = this.normalizePointIndex(pointIndex + sum);
                     if (!this.isPointWithOtherPlayerChecker(sumNewPointIndex)) {
                         moves.add(sumNewPointIndex);
                     }
@@ -88,13 +93,32 @@ export default class Game {
         console.log('this.possibleMoves', this.possibleMoves);
     }
 
+    private tryMoveCheckerToPoint(checkerId: number, pointIndex: number): boolean {
+        const possibleMove = this.possibleMoves.find(i => i === pointIndex);
+        if (possibleMove) {
+            const checkerPointIndex = this.points.findIndex(point => {
+                return point.some((c) => c.id === checkerId);
+            });
+            this.dice.use(possibleMove - checkerPointIndex);
+            const checker = this.points[checkerPointIndex].splice(this.points[checkerPointIndex].length - 1, 1)[0];
+            this.points[pointIndex].push(checker);
+            Renderer.createChecker(checker.id, pointIndex, checker.color);
+            return true;
+        }
+        return false;
+    }
+
     private handleCheckerClick(checkerId: number): void {
-        this.selectedChecker = checkerId;
+        this.selectedCheckerId = checkerId;
+        this.calculatePossibleMoves(checkerId);
     }
 
     private handlePointClick(pointIndex: number): void {
-        if (this.selectedChecker === null) return;
-        this.selectedChecker = null;
+        if (this.selectedCheckerId === null) return;
+        if (this.tryMoveCheckerToPoint(this.selectedCheckerId, pointIndex)) {
+            this.calculatePossibleMoves();
+        }
+        this.selectedCheckerId = null;
     }
 
     private handleDiceRoll(): void {

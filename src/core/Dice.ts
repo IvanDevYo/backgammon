@@ -20,11 +20,20 @@ export default class Dice {
         this.remaining = [...this.values];
     }
 
-    public use(value: number): boolean {
-        const idx = this.remaining.indexOf(value);
-        if (idx === -1) return false;
-        this.remaining.splice(idx, 1);
-        return true;
+    public use(value: number): void {
+        let idx = this.remaining.indexOf(value);
+        let deleteCount = 1;
+        if (idx === -1) {
+            let sum = 0;
+            this.remaining.forEach((v, i) => {
+                sum += v;
+                if (sum === value) {
+                    idx = 0;
+                    deleteCount = i + 1;
+                }
+            })
+        }
+        this.remaining.splice(idx, deleteCount);
     }
 
     public reset(): void {
