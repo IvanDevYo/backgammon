@@ -38,22 +38,24 @@ export default class Game {
     }
 
     public setupInitialPosition() {
-        this.points = Array.from({ length: 24 }, () => []);
+        if (!this.loadFromLocalStorage()) {
+            this.points = Array.from({ length: 24 }, () => []);
 
-        this.addCheckers(0, 'white', 12, 15, false);
-        this.addCheckers(1, 'black', 0, 15, true);
+            this.addCheckers(0, 'white', 12, 15);
+            this.addCheckers(1, 'black', 0, 15);
+        }
+        this.render();
     }
 
-    private addCheckers(playerIndex: number, color: string, pointIndex: number, count: number, reverseMove: boolean = false) {
+    private addCheckers(playerIndex: number, color: string, pointIndex: number, count: number) {
         for (let i = 0; i < count; i++) {
-            const checker = new Checker(this.lastCheckerId++, playerIndex, color, reverseMove);
+            const checker = new Checker(this.lastCheckerId++, playerIndex, color);
             this.points[pointIndex].push(checker);
-            Renderer.createChecker(checker.id, pointIndex, color);
         }
     }
 
     private normalizePointIndex(pointIndex: number): number {
-        return pointIndex > 23 ? 24 - pointIndex : pointIndex;
+        return pointIndex > 23 ? pointIndex - 24 : pointIndex;
     }
 
     private isPointWithOtherPlayerChecker(pointIndex: number): boolean {
@@ -99,31 +101,77 @@ export default class Game {
             const checkerPointIndex = this.points.findIndex(point => {
                 return point.some((c) => c.id === checkerId);
             });
-            this.dice.use(possibleMove - checkerPointIndex);
+            const distance = possibleMove - checkerPointIndex;
+            this.dice.use(distance);
             const checker = this.points[checkerPointIndex].splice(this.points[checkerPointIndex].length - 1, 1)[0];
+            checker.addDistance(distance);
             this.points[pointIndex].push(checker);
-            Renderer.createChecker(checker.id, pointIndex, checker.color);
+            this.render();
+            return true;
+        }
+        return false;
+    }
+
+    private saveToLocalStorage(): void {
+        localStorage.setItem('_saved_points', JSON.stringify(this.points));
+        localStorage.setItem('_current_player_index', String(this.currentPlayerIndex));
+    }
+
+    private loadFromLocalStorage(): boolean {
+        const pointsJson = localStorage.getItem('_saved_points');
+        const currentPlayerIndex = localStorage.getItem('_current_player_index');
+
+        if (pointsJson) {
+            this.currentPlayerIndex = currentPlayerIndex ? Number(currentPlayerIndex) : this.currentPlayerIndex;
+
+            const parsed = JSON.parse(pointsJson);
+            parsed.forEach((checkers: Checker[], pointIndex: number) => {
+                if (checkers.length > 0) {
+                    this.addCheckers(checkers[0].playerIndex, checkers[0].color, pointIndex, checkers.length);
+                }
+            });
             return true;
         }
         return false;
     }
 
     private handleCheckerClick(checkerId: number): void {
-        this.selectedCheckerId = checkerId;
-        this.calculatePossibleMoves(checkerId);
+        if (this.phase === 'waiting_move') {
+            this.selectedCheckerId = checkerId;
+            this.calculatePossibleMoves(checkerId);
+        }
     }
 
     private handlePointClick(pointIndex: number): void {
         if (this.selectedCheckerId === null) return;
         if (this.tryMoveCheckerToPoint(this.selectedCheckerId, pointIndex)) {
-            this.calculatePossibleMoves();
+            if (this.dice.remaining.length) {
+                this.calculatePossibleMoves();
+            } else {
+                this.currentPlayerIndex = this.currentPlayerIndex === 1 ? 0 : 1;
+                this.phase = 'waiting_roll';
+                this.saveToLocalStorage();
+            }
         }
         this.selectedCheckerId = null;
     }
 
     private handleDiceRoll(): void {
-        this.dice.roll();
-        this.calculatePossibleMoves();
+        if (this.phase === 'waiting_roll') {
+            this.dice.roll();
+            this.phase = 'waiting_move';
+            this.calculatePossibleMoves();
+        }
+    }
+
+    public render(): void {
+        document.querySelectorAll('.point').forEach((el) => (el.innerHTML = ''));
+
+        this.points.forEach((checkers, pointIndex) => {
+            checkers.forEach((checker) => {
+                Renderer.createChecker(checker.id, pointIndex, checker.color);
+            });
+        });
     }
 
     public destroy(): void {

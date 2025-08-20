@@ -56,6 +56,11 @@ export default class Renderer {
         point!.innerHTML = point!.innerHTML?.concat(`<div class="checker checker-${color}" data-index="${index}"></div>`);
     }
 
+    public static removeChecker(index: number, pointIndex: number): void {
+        const checker = document.querySelector(`.point[data-index="${pointIndex}"] .checker[data-index="${index}"]`);
+        checker?.remove();
+    }
+
     public static createPoint(index: number, rowIndex: number): void {
         const row = document.querySelectorAll(`.point-row`)[rowIndex];
         row!.innerHTML = row!.innerHTML?.concat(`<div class="point" data-index="${index}"></div>`);
